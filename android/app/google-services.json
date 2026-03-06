@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "19166489760",
+    "project_id": "el-sania-tech",
+    "storage_bucket": "el-sania-tech.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:19166489760:android:b64f2e2fb7f8830c1e2dc5",
+        "android_client_info": {
+          "package_name": "com.example.my_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtyMgc-WRwfXrGKelALJnkgBVRtXrzi00"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

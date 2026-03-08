@@ -82,9 +82,23 @@ class EngineerDashboard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    ...houses.map(
-                      (doc) => _buildHouseCard(context, doc.id, doc.data()),
-                    ),
+                    if (houses.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Text(
+                            'No greenhouses available.',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ...houses.map(
+                        (doc) => _buildHouseCard(context, doc.id, doc.data()),
+                      ),
                   ],
                 );
               },

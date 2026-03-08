@@ -22,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _errorMessage;
-  AuthMode _authMode = AuthMode.login;
 
   late AnimationController _hoverAnimController;
   late Animation<double> _scaleAnimation;
@@ -76,19 +75,25 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
+    setState(() {
+      _errorMessage = null;
+    });
+
     final authService = context.read<AuthService>();
-    bool success;
 
-    if (_authMode == AuthMode.login) {
-      success = await authService.login(email, password);
-    } else {
+    // Attempt Login
+    bool success = await authService.login(email, password);
+
+    // If login fails, try registering the user
+    if (!success) {
       success = await authService.register(email, password);
-    }
 
-    if (!success && mounted) {
-      setState(() {
-        _errorMessage = localizations.invalidCredentials;
-      });
+      if (!success && mounted) {
+        // If both fail, show an error (e.g. wrong password for existing user)
+        setState(() {
+          _errorMessage = localizations.invalidCredentials;
+        });
+      }
     }
   }
 
@@ -168,13 +173,14 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _authMode == AuthMode.login
-                            ? localizations.signInTitle
-                            : localizations.registerMode,
+                        localizations.localeName == 'ar'
+                            ? 'أدخل بياناتك للمتابعة أو إنشاء حساب جديد'
+                            : 'Enter your credentials to continue or register',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: Colors.white70,
                         ),
+                        textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 32),
                       TextField(
@@ -209,23 +215,6 @@ class _LoginScreenState extends State<LoginScreen>
                         const SizedBox(height: 16),
                       ],
                       _buildSubmitButton(isLoading, localizations),
-                      const SizedBox(height: 24),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _authMode = _authMode == AuthMode.login
-                                ? AuthMode.register
-                                : AuthMode.login;
-                            _errorMessage = null;
-                          });
-                        },
-                        child: Text(
-                          _authMode == AuthMode.login
-                              ? "Don't have an account? Register"
-                              : "Already have an account? Login",
-                          style: const TextStyle(color: AppTheme.primaryGreen),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -280,9 +269,7 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 )
               : Text(
-                  _authMode == AuthMode.login
-                      ? localizations.loginButton
-                      : localizations.registerMode,
+                  localizations.localeName == 'ar' ? 'دخـول' : 'Continue',
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

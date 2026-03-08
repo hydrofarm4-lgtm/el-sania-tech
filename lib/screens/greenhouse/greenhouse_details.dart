@@ -385,6 +385,25 @@ class _GreenhouseDetailsScreenState extends State<GreenhouseDetailsScreen> {
   }
 
   Widget _buildSensorsPanel(Map<String, dynamic> data, AppLocalizations l10n) {
+    // Check if ESP32 is online. We assume 'isOnline' is a boolean in Firestore.
+    // If it doesn't exist, we can also check if temperature is null as a fallback.
+    final bool isOnline = data['isOnline'] ?? (data['temperature'] != null);
+
+    final double displayTemp = isOnline
+        ? (data['temperature'] ?? 0.0).toDouble()
+        : 0.0;
+    final double displayHum = isOnline
+        ? (data['humidity'] ?? 0.0).toDouble()
+        : 0.0;
+    final double displayEC = isOnline ? (data['ec'] ?? 0.0).toDouble() : 0.0;
+    final double displayPH = isOnline ? (data['ph'] ?? 0.0).toDouble() : 0.0;
+    final double displayWater = isOnline
+        ? (data['waterLevel'] ?? 0.0).toDouble()
+        : 0.0;
+    final double displayLight = isOnline
+        ? (data['light'] ?? 0.0).toDouble()
+        : 0.0;
+
     return GlassCard(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -392,7 +411,11 @@ class _GreenhouseDetailsScreenState extends State<GreenhouseDetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.sensors, color: AppTheme.primaryGreen, size: 28),
+              Icon(
+                isOnline ? Icons.sensors : Icons.sensors_off,
+                color: isOnline ? AppTheme.primaryGreen : Colors.redAccent,
+                size: 28,
+              ),
               const SizedBox(width: 12),
               Text(
                 l10n.liveSensors,
@@ -415,7 +438,7 @@ class _GreenhouseDetailsScreenState extends State<GreenhouseDetailsScreen> {
             children: [
               _buildSensorItem(
                 title: l10n.sensorTemp,
-                value: '${(data['temperature'] ?? 0.0).toStringAsFixed(1)} °C',
+                value: '${displayTemp.toStringAsFixed(1)} °C',
                 icon: Icons.thermostat,
                 onTap: () => context.push(
                   '/greenhouse/${widget.greenhouseId}/temperature',
@@ -423,23 +446,65 @@ class _GreenhouseDetailsScreenState extends State<GreenhouseDetailsScreen> {
               ),
               _buildSensorItem(
                 title: l10n.sensorHumidity,
-                value: '${(data['humidity'] ?? 0.0).toStringAsFixed(1)} %',
+                value: '${displayHum.toStringAsFixed(1)} %',
                 icon: Icons.water_drop,
                 onTap: () =>
                     context.push('/greenhouse/${widget.greenhouseId}/humidity'),
               ),
               _buildSensorItem(
                 title: l10n.sensorEC,
-                value: '${(data['ec'] ?? 0.0).toStringAsFixed(2)} mS',
+                value: '${displayEC.toStringAsFixed(2)} mS',
                 icon: Icons.bolt,
               ),
               _buildSensorItem(
                 title: l10n.sensorPH,
-                value: (data['ph'] ?? 0.0).toStringAsFixed(2),
+                value: displayPH.toStringAsFixed(2),
                 icon: Icons.science,
+              ),
+              _buildSensorItem(
+                title: l10n.sensorWaterLevel,
+                value: '${displayWater.toStringAsFixed(0)} %',
+                icon: Icons.water_drop_outlined,
+              ),
+              _buildSensorItem(
+                title: l10n.sensorLight,
+                value: '${displayLight.toStringAsFixed(0)} lx',
+                icon: Icons.light_mode,
+                onTap: () =>
+                    context.push('/greenhouse/${widget.greenhouseId}/light'),
               ),
             ],
           ),
+          if (!isOnline) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.wifi_off_rounded,
+                    color: Colors.redAccent,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'ESP32 Disconnected (وحدة ESP32 غير متصلة)',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -493,6 +558,12 @@ class _GreenhouseDetailsScreenState extends State<GreenhouseDetailsScreen> {
             l10n.controlVentilationFans,
             'fan',
             actuators['fan'] ?? false,
+            isAuto,
+          ),
+          _buildActuatorToggle(
+            l10n.controlRefillValve,
+            'refill',
+            actuators['refill'] ?? false,
             isAuto,
           ),
         ],

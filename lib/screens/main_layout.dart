@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:provider/provider.dart';
+import '../core/auth_service.dart';
 import '../theme/app_theme.dart';
 
 class MainLayout extends StatefulWidget {
@@ -24,7 +26,17 @@ class _MainLayoutState extends State<MainLayout> {
 
     switch (index) {
       case 0:
-        context.go('/super-admin');
+        final authService = context.read<AuthService>();
+        final role = authService.currentUser?.role;
+        if (role == UserRole.superAdmin) {
+          context.go('/super-admin');
+        } else if (role == UserRole.engineer) {
+          context.go('/engineer');
+        } else if (role == UserRole.worker) {
+          context.go('/worker');
+        } else {
+          context.go('/login');
+        }
         break;
       case 1:
         context.go('/ai-hub');

@@ -85,6 +85,8 @@ class AuthService extends ChangeNotifier {
   User? _currentUser;
   bool _isLoading = true;
   StreamSubscription? _authSubscription;
+  StreamSubscription? _userDocSubscription;
+  StreamSubscription? _allUsersSubscription;
 
   AuthService() {
     _listenToAuthChanges();
@@ -98,6 +100,11 @@ class AuthService extends ChangeNotifier {
   List<User> _pendingUsers = [];
   List<User> get pendingUsers => _pendingUsers;
 
+  List<User> _approvedUsers = [];
+
+  List<User> _allUsers = [];
+  List<User> get allUsers => _allUsers;
+
   void _listenToAuthChanges() {
     _authSubscription = _auth.authStateChanges().listen((
       fb_auth.User? fbUser,
@@ -105,52 +112,116 @@ class AuthService extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
+      await _userDocSubscription?.cancel();
+      await _allUsersSubscription?.cancel();
+
       if (fbUser != null) {
-        final doc = await _firestore.collection('users').doc(fbUser.uid).get();
-        if (doc.exists) {
-          _currentUser = User.fromMap(fbUser.uid, doc.data()!);
-        } else {
-          // If profile missing, create a temp one
+        // BOOTSTRAP: Hardcode nassim@gmail.com as superAdmin
+        if (fbUser.email == 'nassim@gmail.com') {
           _currentUser = User(
             id: fbUser.uid,
-            name: fbUser.displayName ?? fbUser.email?.split('@')[0] ?? 'User',
-            email: fbUser.email ?? '',
-            status: AuthStatus.pending,
+            name: 'Nassim (Admin)',
+            email: fbUser.email!,
+            role: UserRole.superAdmin,
+            status: AuthStatus.authenticated,
+            isApproved: true,
           );
+          try {
+            await _firestore
+                .collection('users')
+                .doc(fbUser.uid)
+                .set(_currentUser!.toMap());
+          } catch (_) {}
+        } else {
+          try {
+            final doc = await _firestore
+                .collection('users')
+                .doc(fbUser.uid)
+                .get();
+            if (doc.exists) {
+              _currentUser = User.fromMap(fbUser.uid, doc.data()!);
+            } else {
+              // If profile missing, create a temp one and try saving it to DB
+              _currentUser = User(
+                id: fbUser.uid,
+                name:
+                    fbUser.displayName ?? fbUser.email?.split('@')[0] ?? 'User',
+                email: fbUser.email ?? '',
+                status: AuthStatus.pending,
+                isApproved: false,
+                role: UserRole.worker, // default
+              );
+              try {
+                await _firestore
+                    .collection('users')
+                    .doc(fbUser.uid)
+                    .set(_currentUser!.toMap());
+              } catch (e) {
+                debugPrint('Could not save new user to firestore: $e');
+              }
+            }
+          } catch (e) {
+            debugPrint("Error fetching profile: $e");
+            // Fallback to pending if we can't read from DB (e.g. Permission Denied)
+            _currentUser = User(
+              id: fbUser.uid,
+              name: fbUser.email?.split('@')[0] ?? 'User',
+              email: fbUser.email ?? '',
+              status: AuthStatus.pending,
+              isApproved: false,
+              role: UserRole.worker,
+            );
+          }
+        }
+
+        // Setup individual profile listener
+        _userDocSubscription = _firestore
+            .collection('users')
+            .doc(fbUser.uid)
+            .snapshots()
+            .listen((doc) {
+              if (doc.exists) {
+                _currentUser = User.fromMap(fbUser.uid, doc.data()!);
+
+                // Re-check Admin status to setup global list listener after profile is loaded dynamically
+                if (_currentUser?.role == UserRole.superAdmin) {
+                  _setupAdminListeners();
+                }
+
+                notifyListeners();
+              }
+            }, onError: (e) => debugPrint('User stream error: $e'));
+
+        // If explicitly set at bootstrap
+        if (_currentUser?.role == UserRole.superAdmin) {
+          _setupAdminListeners();
         }
       } else {
         _currentUser = null;
+        _allUsers = [];
+        _pendingUsers = [];
+        _approvedUsers = [];
       }
 
       _isLoading = false;
       notifyListeners();
     });
+  }
 
-    // Listen to current user's document changes for instant approval feedback
-    _auth.authStateChanges().listen((fb_user) {
-      if (fb_user != null) {
-        _firestore.collection('users').doc(fb_user.uid).snapshots().listen((
-          doc,
-        ) {
-          if (doc.exists) {
-            _currentUser = User.fromMap(fb_user.uid, doc.data()!);
-            notifyListeners();
-          }
-        });
-      }
-    });
+  void _setupAdminListeners() {
+    _allUsersSubscription?.cancel();
+    _allUsersSubscription = _firestore.collection('users').snapshots().listen((
+      snapshot,
+    ) {
+      _allUsers = snapshot.docs
+          .map((doc) => User.fromMap(doc.id, doc.data()))
+          .toList();
 
-    // Listen to ALL pending users for Admin view
-    _firestore
-        .collection('users')
-        .where('isApproved', isEqualTo: false)
-        .snapshots()
-        .listen((snapshot) {
-          _pendingUsers = snapshot.docs
-              .map((doc) => User.fromMap(doc.id, doc.data()))
-              .toList();
-          notifyListeners();
-        });
+      _pendingUsers = _allUsers.where((u) => !u.isApproved).toList();
+      _approvedUsers = _allUsers.where((u) => u.isApproved).toList();
+
+      notifyListeners();
+    }, onError: (e) => debugPrint('All users stream error: $e'));
   }
 
   Future<bool> login(String email, String password) async {
@@ -211,6 +282,23 @@ class AuthService extends ChangeNotifier {
     });
   }
 
+  Future<void> updateUser(
+    String userId,
+    UserRole role,
+    List<String> houses,
+    bool isApproved,
+  ) async {
+    await _firestore.collection('users').doc(userId).update({
+      'role': role.name,
+      'assignedGreenhouses': houses,
+      'isApproved': isApproved,
+    });
+  }
+
+  Future<void> deleteUser(String userId) async {
+    await _firestore.collection('users').doc(userId).delete();
+  }
+
   Future<void> logout() async {
     await _auth.signOut();
     _currentUser = null;
@@ -220,6 +308,8 @@ class AuthService extends ChangeNotifier {
   @override
   void dispose() {
     _authSubscription?.cancel();
+    _userDocSubscription?.cancel();
+    _allUsersSubscription?.cancel();
     super.dispose();
   }
 }

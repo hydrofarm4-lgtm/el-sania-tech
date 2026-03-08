@@ -31,7 +31,7 @@ class AppRouter {
         }
 
         if (!isAuthenticated && !isPending) {
-          return (isLoginRoute || isPendingRoute) ? null : '/login';
+          return isLoginRoute ? null : '/login';
         }
 
         if (isAuthenticated && (isLoginRoute || isPendingRoute)) {

@@ -244,6 +244,9 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
         if (!snapshot.hasData) return const SizedBox();
         final data = snapshot.data!.data();
         if (data == null) return const SizedBox();
+
+        final bool isOnline = data['isOnline'] ?? (data['temperature'] != null);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -257,36 +260,60 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMiniSensorCard(
-                    'Temp',
-                    '${(data['temperature'] ?? 0).toStringAsFixed(1)}°C',
-                    Icons.thermostat,
-                    Colors.orangeAccent,
+            if (!isOnline)
+              GlassCard(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.wifi_off,
+                        color: Colors.white54,
+                        size: 28,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'ESP32 Disconnected (غير متصل)',
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildMiniSensorCard(
-                    'Humidity',
-                    '${(data['humidity'] ?? 0).toStringAsFixed(0)}%',
-                    Icons.water_drop,
-                    Colors.blueAccent,
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildMiniSensorCard(
+                      'Temp',
+                      '${(data['temperature'] ?? 0).toStringAsFixed(1)}°C',
+                      Icons.thermostat,
+                      Colors.orangeAccent,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildMiniSensorCard(
-                    'pH',
-                    (data['ph'] ?? 0).toStringAsFixed(1),
-                    Icons.science,
-                    Colors.purpleAccent,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildMiniSensorCard(
+                      'Humidity',
+                      '${(data['humidity'] ?? 0).toStringAsFixed(0)}%',
+                      Icons.water_drop,
+                      Colors.blueAccent,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildMiniSensorCard(
+                      'pH',
+                      (data['ph'] ?? 0).toStringAsFixed(1),
+                      Icons.science,
+                      Colors.purpleAccent,
+                    ),
+                  ),
+                ],
+              ),
           ],
         );
       },

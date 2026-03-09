@@ -521,12 +521,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(
-                        Icons.manage_accounts,
-                        color: Colors.white70,
-                      ),
+                      icon: const Icon(Icons.edit, color: Colors.white70),
                       onPressed: () =>
                           _showUserManagementDialog(context, user, l10n),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () => _confirmDeleteUser(context, user),
                     ),
                   ],
                 ),
@@ -634,7 +638,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     User user,
     AppLocalizations l10n,
   ) {
+    // If the user being edited is superAdmin, we shouldn't force them into worker/engineer dropdown
+    // unless we also provide a superAdmin option.
     UserRole selectedRole = user.role ?? UserRole.worker;
+
+    // In case the selectedRole isn't one of the options (e.g. they somehow are superAdmin but in this dialog)
+    if (selectedRole != UserRole.engineer && selectedRole != UserRole.worker) {
+      selectedRole = UserRole.worker;
+    }
+
     List<String> selectedHouses = List.from(user.assignedGreenhouses);
     bool isApproved = user.isApproved;
 
@@ -697,24 +709,62 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   style: TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 8),
-                // Since this might be dynamic, we normally fetch from IoTService or Firestore.
-                // For demonstration, hardcoded to an initial list, we can make it dynamic by pulling from context:
-                ...['House A', 'House B', 'House C'].map(
-                  (id) => CheckboxListTile(
-                    title: Text(
-                      id,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                    value: selectedHouses.contains(id),
-                    activeColor: AppTheme.primaryGreen,
-                    checkColor: Colors.black,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) => setDialogState(
-                      () => val!
-                          ? selectedHouses.add(id)
-                          : selectedHouses.remove(id),
-                    ),
-                  ),
+
+                // Fetch physical greenhouses directly from Firebase dynamically
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('greenhouses')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.primaryGreen,
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError ||
+                        !snapshot.hasData ||
+                        snapshot.data!.docs.isEmpty) {
+                      return const Text(
+                        "No Greenhouses available.",
+                        style: TextStyle(color: Colors.redAccent),
+                      );
+                    }
+
+                    final allHouses = snapshot.data!.docs
+                        .map((doc) => doc.id)
+                        .toList();
+
+                    return Column(
+                      children: allHouses
+                          .map(
+                            (id) => CheckboxListTile(
+                              title: Text(
+                                id,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              value: selectedHouses.contains(id),
+                              activeColor: AppTheme.primaryGreen,
+                              checkColor: Colors.black,
+                              contentPadding: EdgeInsets.zero,
+                              onChanged: (val) {
+                                setDialogState(() {
+                                  if (val == true) {
+                                    selectedHouses.add(id);
+                                  } else {
+                                    selectedHouses.remove(id);
+                                  }
+                                });
+                              },
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
                 ),
               ],
             ),
